@@ -489,12 +489,12 @@ def normalize_dimensions(dimensions):
             elif isinstance(dimension, Real):
                 transformed_dimensions.append(
                     Real(dimension.low, dimension.high, dimension.prior,
-                         transform="normalize")
+                         transform="normalize", name=dimension.name)
                     )
             elif isinstance(dimension, Integer):
                 transformed_dimensions.append(
                     Integer(dimension.low, dimension.high,
-                            transform="normalize")
+                            transform="normalize", name=dimension.name)
                     )
             else:
                 raise RuntimeError("Unknown dimension type "

@@ -240,8 +240,8 @@ class Real(Dimension):
                 self.transform_ == other.transform_)
 
     def __repr__(self):
-        return "Real(low={}, high={}, prior={}, transform={})".format(
-            self.low, self.high, self.prior, self.transform_)
+        return "Real(low={}, high={}, prior={}, transform={}, name={})".format(
+            self.low, self.high, self.prior, self.transform_, self.name)
 
     def inverse_transform(self, Xt):
         """Inverse transform samples from the warped space back into the
@@ -334,7 +334,7 @@ class Integer(Dimension):
                 np.allclose([self.high], [other.high]))
 
     def __repr__(self):
-        return "Integer(low={}, high={})".format(self.low, self.high)
+        return "Integer(low={}, high={}, name={})".format(self.low, self.high, self.name)
 
     def inverse_transform(self, Xt):
         """Inverse transform samples from the warped space back into the
@@ -440,7 +440,7 @@ class Categorical(Dimension):
         else:
             prior = self.prior
 
-        return "Categorical(categories={}, prior={})".format(cats, prior)
+        return "Categorical(categories={}, prior={}, name={})".format(cats, prior, self.name)
 
     def rvs(self, n_samples=None, random_state=None):
         choices = self._rvs.rvs(size=n_samples, random_state=random_state)
@@ -517,6 +517,9 @@ class Space(object):
             dimensions.
         """
         self.dimensions = [check_dimension(dim) for dim in dimensions]
+
+        # Names of all the dimensions in the search-space.
+        self.dimension_names = [dim.name for dim in self.dimensions]
 
     def __eq__(self, other):
         return all([a == b for a, b in zip(self.dimensions, other.dimensions)])
@@ -721,3 +724,108 @@ class Space(object):
             distance += dim.distance(a, b)
 
         return distance
+
+    def get_dimension(self, id):
+        """Get the Dimension-object in the search-space using either
+        its name or index as the lookup-id.
+
+        Parameters
+        ----------
+        * `id` str or int:
+            If `id` is a string then it is the name of a dimension.
+            If `id` is an integer then it is the index of a dimension.
+
+        Returns
+        -------
+        * (`dimension`, `index`, `name`) [tuple(Dimension, int, str)]:
+            Dimension-object and its index in the search-space.
+            The name is taken from the Dimension-object if not None,
+            otherwise it is 'X_n' where n is the index.
+        """
+
+        if isinstance(id, str):
+            # The id is assumed to be a string-name of a dimension,
+            # so find its index.
+            index = self.dimension_names.index(id)
+        elif isinstance(id, int):
+            # The id is assumed to be the index of a dimension.
+            index = id
+        else:
+            raise ValueError("Dimension id must be either a string with the name or an integer for the index.")
+
+        # Get the corresponding dimension-object.
+        dimension = self.dimensions[index]
+
+        # Get the name of the dimension.
+        name = dimension.name
+
+        # Use a default name for unnamed dimensions.
+        # TODO: Maybe it would be better to set this in Space.__init__?
+        if name is None:
+            name = "X_" + str(index)
+
+        return dimension, index, name
+
+    def get_dimensions(self, ids=None):
+        """Get the search-space dimensions with the given ids.
+        The ids can be either a list of strings or integers.
+        If strings then they are the names of the dimensions.
+        If integers then they are the indices of the dimensions.
+        If ids is None then get all the dimensions.
+
+        Parameters
+        ----------
+        * `ids` [list of str or int, or None]:
+            If list of `str` then it is the names of dimensions to select.
+            If list of `int` then it is the indices of dimensions to select.
+            If None then select all dimensions.
+
+        Returns
+        -------
+        * `(dimensions, indices, names)` [tuple(list Dimension, list int, list str)]
+            List of the matching dimensions from the search-space.
+            List of their indices in the search-space.
+            List of their names.
+        """
+
+        if ids is None:
+            # We use all dimensions so the ids are just a range for all dimensions.
+            ids = range(len(self.dimensions))
+
+        # Lookup the dimensions for the ids.
+        result = [self.get_dimension(id=id) for id in ids]
+
+        # Unpack the returned lists.
+        dimensions, index, names = zip(*result)
+
+        return dimensions, index, names
+
+    def to_dict(self, x):
+        """Convert a location in the search-space from a list
+        to a dict where the keys are the names of the dimensions.
+
+        NOTE: There is a related function in `utils.point_asdict()`
+        but it takes the search-space as a dict instead.
+        
+        Example
+        -------
+        If `self.dimension_names = ['height', 'width', 'color']`
+        then `to_dict(x=[1, 2.0, 'red'])` returns the dict:
+        `{'height': 1, 'width': 2.0, 'color': 'red'}`
+
+        Parameters
+        ----------
+        * `x` [list]:
+            A location in the search-space.
+
+        Returns
+        -------
+        * `x_dict` [dict]
+            The location `x` in the search-space wrapped in a dict.
+            The keys are the names of the dimensions, and the
+            values are from `x`.
+        """
+
+        x_dict = {dim_name: value for dim_name, value in zip(self.dimension_names, x)}
+
+        return x_dict
