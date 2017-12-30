@@ -885,7 +885,7 @@ def plot_objective_2D(result, dimension_name1, dimension_name2,
     return fig, ax
 
 
-def plot_histogram(result, dimension_name, bins=20, rotate_label=False):
+def plot_histogram(result, dimension_name, bins=20, rotate_labels=0):
     """
     Create and return a Matplotlib figure with a histogram
     of the samples from the optimization results,
@@ -902,8 +902,9 @@ def plot_histogram(result, dimension_name, bins=20, rotate_label=False):
     * `bins` [int, bins=20]:
         Number of bins in the histogram.
 
-    * `rotate_label` [bool, rotate_label=False]:
-        Whether or not to rotate the category-names on the x-axis.
+    * `rotate_labels` [int, rotate_labels=0]:
+        Degree to rotate category-names on the x-axis.
+        Only used for Categorical dimensions.
 
     Returns
     -------
@@ -952,9 +953,8 @@ def plot_histogram(result, dimension_name, bins=20, rotate_label=False):
         # Plot using bars.
         ax.bar(x, counts, tick_label=names)
 
-        # Rotate the category-names 90 degrees.
-        if rotate_label:
-            ax.set_xticks(rotation=90)
+        # Adjust the rotation of the category-names on the x-axis.
+        ax.set_xticklabels(labels=names, rotation=rotate_labels)
     else:
         # Otherwise the search-space Dimension is either integer or float,
         # in which case the histogram can be plotted more easily.
