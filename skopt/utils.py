@@ -501,3 +501,58 @@ def normalize_dimensions(dimensions):
                                    "(%s)" % type(dimension))
 
     return Space(transformed_dimensions)
+
+
+def any_categorical(dimensions):
+    """Return a bool whether one of the given dimensions is Categorical.
+
+    Parameters
+    ----------
+    * `dimensions` [list(Dimension), shape=(n_dims,)]:
+        List of `Dimension`-objects.
+
+    Returns
+    -------
+    * [bool]:
+      True if one or more of the dimensions is Categorical,
+      otherwise False.
+    """
+
+    return any(type(dim) == Categorical for dim in dimensions)
+
+
+def get_samples_dimension(result, index):
+    """Get the samples for the given dimension index
+    from the optimization-result from e.g. `gp_minimize()`.
+
+    This function is used instead of numpy, because if
+    we convert `result.x_iters` to a 2-d numpy array,
+    then all data-types must be identical otherwise numpy
+    will promote all the types to the most general type.
+    For example, if you have a Categorical dimension which
+    is a string, then your Real and Integer dimensions will
+    be converted to strings as well in the 2-d numpy array.
+
+    Using this function instead of numpy ensures the
+    original data-type is being preserved.
+    
+    See `plots.py` for example usage.
+
+    Parameters
+    ----------
+    * `result` [`OptimizeResult`]
+        The optimization results e.g. from calling `gp_minimize()`.
+
+    * `index` [int]:
+        Index for a dimension in the search-space.
+
+    Returns
+    -------
+    * `samples`: [list of either int, float or string]:
+        The optimization samples for the given dimension.
+    """
+
+    # Get the samples from the optimization-log for the relevant dimension.
+    samples = [x[index] for x in result.x_iters]
+
+    return samples

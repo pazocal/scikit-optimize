@@ -143,7 +143,13 @@ class Dimension(object):
 
     @property
     def name(self):
-        return self._name
+        if self._name is None:
+            # Dimension has no name, so make a default one.
+            n = 'X_{}'.format(self.index)
+        else:
+            # Dimension has a name, so use it.
+            n = self._name
+        return n
 
     @name.setter
     def name(self, value):
@@ -151,6 +157,19 @@ class Dimension(object):
             self._name = value
         else:
             raise ValueError("Dimension's name must be either string or None.")
+
+    @property
+    def index(self):
+        """Index of the dimension in the search-space. This follows
+        the order in which the dimensions were added to the search-space.
+        It should not be changed after it has first been set.
+        It is used to give unnamed dimensions a default name,
+        and it is also used e.g. in plotting functions."""
+        return self._index
+
+    @index.setter
+    def index(self, value):
+        self._index = value
 
 
 def _uniform_inclusive(loc=0.0, scale=1.0):
@@ -518,8 +537,24 @@ class Space(object):
         """
         self.dimensions = [check_dimension(dim) for dim in dimensions]
 
+        # Set the index for all the dimensions.
+        # This is used e.g. in the plotting-functions so we don't
+        # have to return the index with __getitem__ below.
+        # It is important to set this before accessing the dimension-names,
+        # because the index is used for default names if the dimension
+        # is unnamed.
+        for i in range(self.n_dims):
+            self.dimensions[i].index = i
+
         # Names of all the dimensions in the search-space.
-        self.dimension_names = [dim.name for dim in self.dimensions]
+        # This is also a @property further below, but it may be accessed
+        # many times e.g. in __getitem__ so we compute it only once here.
+        self._dimension_names = [dim.name for dim in self.dimensions]
+
+        # Ensure all dimension names are unique.
+        if len(np.unique(self._dimension_names)) != len(self._dimension_names):
+            raise ValueError("All dimension names must be unique.")
+
 
     def __eq__(self, other):
         return all([a == b for a, b in zip(self.dimensions, other.dimensions)])
@@ -533,6 +568,16 @@ class Space(object):
 
     def __iter__(self):
         return iter(self.dimensions)
+
+    @property
+    def dimension_names(self):
+        """
+        Names of all the dimensions in the search-space.
+        """
+
+        # NOTE: This may be called many times e.g. by __getitem__
+        # so we use a pre-computed list instead of re-computing it every time.
+        return self._dimension_names
 
     @property
     def is_real(self):
@@ -690,6 +735,57 @@ class Space(object):
                 return False
         return True
 
+    def __getitem__(self, dimension_names):
+        """
+        Lookup and return the search-space dimension with the given name.
+        
+        This allows for dict-like lookup of dimensions, for example:
+        `space['foo']` returns the dimension named 'foo' if it exists,
+        otherwise a `ValueError` exception is raised.
+        
+        It also allows for lookup of a list of dimension-names, for example:
+        `space[['foo', 'bar']]` returns the two dimensions named
+        'foo' and 'bar' if they exist.
+        
+        Parameters
+        ----------
+        * `dimension_names` [str or list(str)]:
+            Name of a single search-space dimension (str).
+            List of names for search-space dimensions (list(str)).
+
+        Raises
+        ------
+        * `ValueError`:
+            If there is no search-space dimension with the given name.
+
+        Returns
+        -------
+        * `dims` [Dimension or list(Dimension)]:
+            A single search-space dimension with the given name,
+            or a list of search-space dimensions with the given names.
+        """
+        def _get(dimension_name):
+            """Helper-function for getting a single dimension."""
+
+            # Get the index of the search-space dimension using its name.
+            idx = self._dimension_names.index(dimension_name)
+
+            # Get and return the dimension-object.
+            return self.dimensions[idx]
+
+        if isinstance(dimension_names, str):
+            # Get a single search-space dimension.
+            dims = _get(dimension_name=dimension_names)
+        elif isinstance(dimension_names, list):
+            # Get a list of search-space dimensions.
+            # Note that we do not check whether the names are really strings.
+            dims = [_get(dimension_name=name) for name in dimension_names]
+        else:
+            msg = "Dimension name should be either string or list of strings, but got {}."
+            raise ValueError(msg.format(type(dimension_names)))
+
+        return dims
+
     @property
     def transformed_bounds(self):
         """The dimension bounds, in the warped space."""
@@ -725,83 +821,9 @@ class Space(object):
 
         return distance
 
-    def get_dimension(self, id):
-        """Get the Dimension-object in the search-space using either
-        its name or index as the lookup-id.
 
-        Parameters
-        ----------
-        * `id` str or int:
-            If `id` is a string then it is the name of a dimension.
-            If `id` is an integer then it is the index of a dimension.
-
-        Returns
-        -------
-        * (`dimension`, `index`, `name`) [tuple(Dimension, int, str)]:
-            Dimension-object and its index in the search-space.
-            The name is taken from the Dimension-object if not None,
-            otherwise it is 'X_n' where n is the index.
-        """
-
-        if isinstance(id, str):
-            # The id is assumed to be a string-name of a dimension,
-            # so find its index.
-            index = self.dimension_names.index(id)
-        elif isinstance(id, int):
-            # The id is assumed to be the index of a dimension.
-            index = id
-        else:
-            raise ValueError("Dimension id must be either a string with the name or an integer for the index.")
-
-        # Get the corresponding dimension-object.
-        dimension = self.dimensions[index]
-
-        # Get the name of the dimension.
-        name = dimension.name
-
-        # Use a default name for unnamed dimensions.
-        # TODO: Maybe it would be better to set this in Space.__init__?
-        if name is None:
-            name = "X_" + str(index)
-
-        return dimension, index, name
-
-    def get_dimensions(self, ids=None):
-        """Get the search-space dimensions with the given ids.
-        The ids can be either a list of strings or integers.
-        If strings then they are the names of the dimensions.
-        If integers then they are the indices of the dimensions.
-        If ids is None then get all the dimensions.
-
-        Parameters
-        ----------
-        * `ids` [list of str or int, or None]:
-            If list of `str` then it is the names of dimensions to select.
-            If list of `int` then it is the indices of dimensions to select.
-            If None then select all dimensions.
-
-        Returns
-        -------
-        * `(dimensions, indices, names)` [tuple(list Dimension, list int, list str)]
-            List of the matching dimensions from the search-space.
-            List of their indices in the search-space.
-            List of their names.
-        """
-
-        if ids is None:
-            # We use all dimensions so the ids are just a range for all dimensions.
-            ids = range(len(self.dimensions))
-
-        # Lookup the dimensions for the ids.
-        result = [self.get_dimension(id=id) for id in ids]
-
-        # Unpack the returned lists.
-        dimensions, index, names = zip(*result)
-
-        return dimensions, index, names
-
-    def to_dict(self, x):
-        """Convert a location in the search-space from a list
+    def point_to_dict(self, x):
+        """Convert a point in the search-space from a list
         to a dict where the keys are the names of the dimensions.
 
         NOTE: There is a related function in `utils.point_asdict()`
@@ -810,22 +832,23 @@ class Space(object):
         Example
         -------
         If `self.dimension_names = ['height', 'width', 'color']`
-        then `to_dict(x=[1, 2.0, 'red'])` returns the dict:
+        then `point_to_dict(x=[1, 2.0, 'red'])` returns the dict:
         `{'height': 1, 'width': 2.0, 'color': 'red'}`
 
         Parameters
         ----------
         * `x` [list]:
-            A location in the search-space.
+            A point in the search-space.
 
         Returns
         -------
         * `x_dict` [dict]
-            The location `x` in the search-space wrapped in a dict.
+            The point `x` in the search-space wrapped in a dict.
             The keys are the names of the dimensions, and the
             values are from `x`.
         """
 
-        x_dict = {dim_name: value for dim_name, value in zip(self.dimension_names, x)}
+        x_dict = {dim_name: value
+                  for dim_name, value in zip(self.dimension_names, x)}
 
         return x_dict
