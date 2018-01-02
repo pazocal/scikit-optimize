@@ -257,11 +257,9 @@ def _adjust_fig(fig, ax, space, ylabel, dimensions):
             ax[row, col].set_yticklabels([])
 
     # Remove the x-tick labels for all plots except the bottom row.
-    # This makes larger plots harder to read so it is disabled for now.
-    if False:
-        for row in range(n_dims-1):
-            for col in range(n_dims):
-                ax[row, col].set_xticklabels([])
+    for row in range(n_dims-1):
+        for col in range(n_dims):
+            ax[row, col].set_xticklabels([])
 
 
 def _map_bins(bins, bounds, prior):
