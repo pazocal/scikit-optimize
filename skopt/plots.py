@@ -677,8 +677,8 @@ def plot_objective_matrix(result, levels=10, n_points=40, n_samples=250,
     last_model = result.models[-1]
 
     # Get new random samples from the search-space and transform if necessary.
-    samples = space.rvs(n_samples=n_samples)
-    samples = space.transform(samples)
+    new_samples = space.rvs(n_samples=n_samples)
+    new_samples = space.transform(new_samples)
 
     # Create a figure for plotting a 2-d matrix of sub-plots.
     fig, ax = plt.subplots(n_dims, n_dims, figsize=(2*n_dims, 2*n_dims))
@@ -704,7 +704,7 @@ def plot_objective_matrix(result, levels=10, n_points=40, n_samples=250,
         # Calculate partial dependence for this dimension.
         xi, yi = partial_dependence_1D(model=last_model,
                                        dimension=dim_row,
-                                       samples=samples,
+                                       samples=new_samples,
                                        n_points=n_points)
 
         # Reference to the plot for the diagonal of this row.
@@ -738,7 +738,7 @@ def plot_objective_matrix(result, levels=10, n_points=40, n_samples=250,
             xi, yi, zi = partial_dependence_2D(model=last_model,
                                                dimension1=dim_col,
                                                dimension2=dim_row,
-                                               samples=samples,
+                                               samples=new_samples,
                                                n_points=n_points)
 
             # Reference to the plot for this row and column.
@@ -839,15 +839,15 @@ def plot_objective_2D(result, dimension_name1, dimension_name2,
     last_model = result.models[-1]
 
     # Get new random samples from the search-space and transform if necessary.
-    samples = space.rvs(n_samples=n_samples)
-    samples = space.transform(samples)
+    new_samples = space.rvs(n_samples=n_samples)
+    new_samples = space.transform(new_samples)
 
     # Estimate the objective function for these sampled points
     # using the last fitted model for the search-space.
     xi, yi, zi = partial_dependence_2D(model=last_model,
                                        dimension1=dimension1,
                                        dimension2=dimension2,
-                                       samples=samples,
+                                       samples=new_samples,
                                        n_points=n_points)
 
     # Start a new plot.
